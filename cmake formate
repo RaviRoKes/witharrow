@@ -1,0 +1,93 @@
+# Minimum CMake version required
+cmake_minimum_required(VERSION <VERSION_NUMBER>)
+
+# Project name and languages used
+project(<PROJECT_NAME> LANGUAGES CXX)
+
+# Compiler options
+if(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|Clang)")
+  add_compile_options(-Wall -Wextra -Wpedantic -Werror=conversion -Werror=unused-but-set-variable
+                      -Werror=return-type -Werror=shadow -Werror=format)
+endif()
+
+# Find dependencies
+set(THIS_PACKAGE_INCLUDE_DEPENDS
+  <LIST_OF_DEPENDENCIES>
+)
+
+find_package(ament_cmake REQUIRED)
+find_package(<ADDITIONAL_DEPENDENCIES> REQUIRED)
+foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
+  find_package(${Dependency} REQUIRED)
+endforeach()
+add_compile_definitions(VERSION_MAJOR=${<VERSION_MAJOR>})
+add_compile_definitions(VERSION_MINOR=${<VERSION_MINOR>})
+
+# Generate parameter library (if needed)
+generate_parameter_library(<PARAMETER_LIBRARY_NAME>
+  <PARAMETER_FILE_PATH>
+)
+
+# Add library or executable
+add_library(
+  <TARGET_NAME>
+  SHARED
+  <SOURCE_FILES>
+)
+target_compile_features(<TARGET_NAME> PUBLIC cxx_std_17)
+target_include_directories(<TARGET_NAME> PUBLIC
+  "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
+  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>")
+target_link_libraries(<TARGET_NAME> PUBLIC
+  <LINKED_LIBRARIES>)
+ament_target_dependencies(<TARGET_NAME> PUBLIC ${THIS_PACKAGE_INCLUDE_DEPENDS})
+
+# Visibility macros for building dll
+target_compile_definitions(<TARGET_NAME> PRIVATE "<VISIBILITY_MACRO>")
+
+# Export plugin description file (if needed)
+pluginlib_export_plugin_description_file(
+  <PLUGIN_INTERFACE> <PLUGIN_DESCRIPTION_FILE>
+)
+
+# Testing (if needed)
+if(BUILD_TESTING)
+  find_package(ament_cmake_gmock REQUIRED)
+  find_package(<ADDITIONAL_TEST_DEPENDENCIES> REQUIRED)
+
+  add_definitions(-DTEST_FILES_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/test")
+  ament_add_gmock(<TEST_NAME> <TEST_SOURCE_FILES>)
+  ament_target_dependencies(<TEST_NAME>
+    <TEST_DEPENDENCIES>
+  )
+
+  add_rostest_with_parameters_gmock(
+    <ROSTEST_NAME> <ROSTEST_SOURCE_FILE>
+    ${CMAKE_CURRENT_SOURCE_DIR}/<ROSTEST_PARAMETER_FILE>)
+  target_include_directories(<ROSTEST_NAME> PRIVATE include)
+  target_link_libraries(<ROSTEST_NAME> <TARGET_NAME>)
+  ament_target_dependencies(
+    <ROSTEST_NAME>
+    <ROSTEST_DEPENDENCIES>
+  )
+endif()
+
+# Install headers
+install(
+  DIRECTORY include/
+  DESTINATION include/${PROJECT_NAME}
+)
+
+# Install targets
+install(
+  TARGETS <TARGET_NAME> <PARAMETER_LIBRARY_NAME>
+  EXPORT <EXPORT_NAME>
+  RUNTIME DESTINATION bin
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+)
+
+# Export package
+ament_export_targets(<EXPORT_NAME> HAS_LIBRARY_TARGET)
+ament_export_dependencies(${THIS_PACKAGE_INCLUDE_DEPENDS})
+ament_package()
